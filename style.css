@@ -35,3 +35,54 @@ html, body {
     padding: 8px;
     border-bottom: 1px solid #ddd;
 }
+.polygon-info {
+  margin-bottom: 16px;
+  padding: 10px;
+  background: #f3f3f3;
+  border-radius: 6px;
+}
+
+.group-block {
+  margin-bottom: 18px;
+}
+
+.group-block h3 {
+  font-size: 15px;
+  margin: 14px 0 8px;
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 5px;
+}
+
+.project-card {
+  margin-bottom: 8px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.project-card summary {
+  cursor: pointer;
+  padding: 8px;
+  font-size: 13px;
+  background: #fafafa;
+}
+
+.project-number {
+  font-weight: bold;
+  margin-right: 6px;
+}
+
+.project-title {
+  color: #222;
+}
+
+.project-details {
+  padding: 8px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.project-details p {
+  margin: 0 0 8px;
+}
