@@ -1,0 +1,37 @@
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    font-family: Arial, sans-serif;
+}
+
+#map {
+    position: absolute;
+    left: 320px;
+    top: 0;
+    right: 0;
+    bottom: 0;
+}
+
+#sidebar {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 320px;
+    bottom: 0;
+    background: white;
+    overflow-y: auto;
+    border-right: 1px solid #ccc;
+    padding: 15px;
+    z-index: 1000;
+}
+
+#sidebar h2 {
+    margin-top: 0;
+}
+
+.project {
+    margin-bottom: 10px;
+    padding: 8px;
+    border-bottom: 1px solid #ddd;
+}
