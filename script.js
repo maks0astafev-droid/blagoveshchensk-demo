@@ -1,7 +1,56 @@
 let selectedLayer = null;
 let projectsData = {};
+let activeLayers = {};
 
 const map = L.map('map').setView([50.290, 127.540], 13);
+
+const models = [
+  {
+    file: 'model.geojson',
+    name: 'Общая пространственная модель',
+    visible: false
+  },
+  {
+    file: 'model_1.geojson',
+    name: 'Транспортно-пространственная связанность и межрегиональная доступность территории',
+    visible: true
+  },
+  {
+    file: 'model_2.geojson',
+    name: 'Природно-экологический и рекреационный потенциал территории',
+    visible: false
+  },
+  {
+    file: 'model_3.geojson',
+    name: 'Социокультурный и туристско-экономический потенциал территории',
+    visible: false
+  },
+  {
+    file: 'model_4.geojson',
+    name: 'Экономическая эффективность и масштаб туристической деятельности',
+    visible: false
+  },
+  {
+    file: 'model_5.geojson',
+    name: 'Инфраструктурное обеспечение туристической деятельности',
+    visible: false
+  },
+  {
+    file: 'model_6.geojson',
+    name: 'Событийно-социальная привлекательность территории',
+    visible: false
+  },
+  {
+    file: 'model_7.geojson',
+    name: 'Пространственная концентрация туристических зон',
+    visible: false
+  },
+  {
+    file: 'model_8.geojson',
+    name: 'Экономическая результативность туристической отрасли',
+    visible: false
+  }
+];
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; OpenStreetMap contributors'
@@ -34,9 +83,7 @@ function selectedStyle() {
 }
 
 function parseNumbers(value) {
-  if (Array.isArray(value)) {
-    return value.map(String);
-  }
+  if (Array.isArray(value)) return value.map(String);
 
   if (typeof value === 'string') {
     return value
@@ -60,19 +107,15 @@ function formatValue(value) {
   return value;
 }
 
-function renderSidebar(props) {
+function renderSidebar(props, modelName) {
   const content = document.getElementById('content');
-
   const numbers = parseNumbers(props["Номера"]);
-
   const grouped = {};
 
   numbers.forEach(number => {
     const groupNumber = getGroupNumber(number);
 
-    if (!grouped[groupNumber]) {
-      grouped[groupNumber] = [];
-    }
+    if (!grouped[groupNumber]) grouped[groupNumber] = [];
 
     if (projectsData[number]) {
       grouped[groupNumber].push({
@@ -90,6 +133,7 @@ function renderSidebar(props) {
   let html = `
     <div class="polygon-info">
       <h3>Выбранная территория</h3>
+      <div><b>Модель:</b> ${modelName}</div>
       <div><b>ID:</b> ${props.id ?? '—'}</div>
       <div><b>Вес ячейки:</b> ${formatValue(props["вес"])}</div>
     </div>
@@ -132,14 +176,8 @@ function renderSidebar(props) {
   content.innerHTML = html;
 }
 
-Promise.all([
-  fetch('data/projects.json').then(response => response.json()),
-  fetch('data/model.geojson').then(response => response.json())
-])
-.then(([projects, geojson]) => {
-  projectsData = projects;
-
-  L.geoJSON(geojson, {
+function createGeoJsonLayer(geojson, model) {
+  return L.geoJSON(geojson, {
     style: defaultStyle,
 
     onEachFeature: function(feature, layer) {
@@ -151,15 +189,73 @@ Promise.all([
         selectedLayer = layer;
         layer.setStyle(selectedStyle());
 
-        renderSidebar(feature.properties);
+        renderSidebar(feature.properties, model.name);
       });
     }
-  }).addTo(map);
+  });
+}
+
+function renderLayerMenu() {
+  const container = document.getElementById('layer-controls');
+
+  container.innerHTML = models.map(model => `
+    <label class="layer-item">
+      <input 
+        type="checkbox" 
+        data-file="${model.file}" 
+        ${model.visible ? 'checked' : ''}
+      >
+      <span>${model.name}</span>
+    </label>
+  `).join('');
+
+  container.querySelectorAll('input[type="checkbox"]').forEach(input => {
+    input.addEventListener('change', function() {
+      const file = this.dataset.file;
+      const layer = activeLayers[file];
+
+      if (!layer) return;
+
+      if (this.checked) {
+        layer.addTo(map);
+      } else {
+        map.removeLayer(layer);
+
+        if (selectedLayer && layer.hasLayer(selectedLayer)) {
+          selectedLayer = null;
+          document.getElementById('content').innerHTML = 'Нажмите на полигон';
+        }
+      }
+    });
+  });
+}
+
+Promise.all([
+  fetch('data/projects.json').then(response => response.json()),
+  ...models.map(model =>
+    fetch(`data/${model.file}`)
+      .then(response => response.json())
+      .then(geojson => ({ model, geojson }))
+  )
+])
+.then(([projects, ...loadedModels]) => {
+  projectsData = projects;
+
+  loadedModels.forEach(({ model, geojson }) => {
+    const layer = createGeoJsonLayer(geojson, model);
+    activeLayers[model.file] = layer;
+
+    if (model.visible) {
+      layer.addTo(map);
+    }
+  });
+
+  renderLayerMenu();
 })
 .catch(error => {
   console.error('Ошибка загрузки данных:', error);
   document.getElementById('content').innerHTML = `
     <b>Ошибка загрузки данных.</b><br>
-    Проверь model.geojson и projects.json.
+    Проверь наличие всех GeoJSON-файлов и projects.json.
   `;
 });
