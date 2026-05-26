@@ -1,6 +1,7 @@
 let selectedLayer = null;
 let projectsData = {};
 let activeLayers = {};
+let modelFeatures = {};
 
 const map = L.map('map').setView([50.290, 127.540], 13);
 
@@ -55,6 +56,68 @@ const models = [
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
+
+document.getElementById('toggle-sidebar').addEventListener('click', function() {
+  document.body.classList.toggle('sidebar-collapsed');
+  setTimeout(() => map.invalidateSize(), 300);
+});
+document.getElementById('mobile-toggle-sidebar').addEventListener('click', function() {
+  document.body.classList.toggle('sidebar-collapsed');
+  setTimeout(() => map.invalidateSize(), 300);
+});
+
+document.getElementById('toggle-analysis').addEventListener('click', function() {
+  document.body.classList.toggle('analysis-collapsed');
+  setTimeout(() => map.invalidateSize(), 300);
+});
+document.getElementById('mobile-toggle-analysis').addEventListener('click', function() {
+  document.body.classList.toggle('analysis-collapsed');
+  setTimeout(() => map.invalidateSize(), 300);
+});
+
+const drawnItems = new L.FeatureGroup();
+map.addLayer(drawnItems);
+
+const drawControl = new L.Control.Draw({
+  draw: {
+    polygon: true,
+    polyline: true,
+    marker: true,
+    rectangle: true,
+    circle: false,
+    circlemarker: false
+  },
+  edit: {
+    featureGroup: drawnItems,
+    remove: true
+  }
+});
+
+map.addControl(drawControl);
+
+map.on(L.Draw.Event.CREATED, function(event) {
+  drawnItems.clearLayers();
+
+  const drawnLayer = event.layer;
+  drawnItems.addLayer(drawnLayer);
+
+  const drawnGeoJSON = drawnLayer.toGeoJSON();
+
+  document.getElementById('analysis-status').innerHTML = `
+    Геометрия выделения создана.<br>
+    Тип: <b>${drawnGeoJSON.geometry.type}</b>
+  `;
+
+  renderIntersectionAnalysis(drawnGeoJSON);
+});
+
+document.getElementById('clear-selection-btn').addEventListener('click', function() {
+  drawnItems.clearLayers();
+
+  document.getElementById('analysis-status').innerHTML = `
+    Нарисуйте полигон, линию или точку на карте.
+  `;
+});
 
 function getColor(weight) {
   return weight > 0.7 ? '#800026' :
@@ -176,6 +239,96 @@ function renderSidebar(props, modelName) {
   content.innerHTML = html;
 }
 
+function renderIntersectionAnalysis(drawnGeoJSON) {
+  const resultsContainer = document.getElementById('analysis-results');
+  let html = '';
+
+  models.forEach(model => {
+    const features = modelFeatures[model.file];
+    if (!features) return;
+
+    const projectStats = {};
+
+    features.forEach(feature => {
+      try {
+        if (!turf.booleanIntersects(drawnGeoJSON, feature)) return;
+
+        const numbers = parseNumbers(feature.properties["Номера"]);
+
+        numbers.forEach(number => {
+          const project = projectsData[number];
+          if (!project) return;
+
+          if (!projectStats[number]) {
+            projectStats[number] = {
+              number,
+              territory: project.territory,
+              description: project.description,
+              reference_programs: project.reference_programs,
+              additional_characteristics: project.additional_characteristics,
+              additional_weight: project.additional_weight,
+              final_weight: Number(project.final_weight || 0),
+              count: 0
+            };
+          }
+
+          projectStats[number].count++;
+        });
+
+      } catch (error) {
+        console.warn('Ошибка пересечения:', error);
+      }
+    });
+
+    const projects = Object.values(projectStats);
+
+    if (projects.length === 0) return;
+
+    const quantitative = [...projects].sort((a, b) => b.count - a.count);
+    const qualitative = [...projects].sort((a, b) => b.final_weight - a.final_weight);
+
+    html += `
+      <details class="analysis-model">
+        <summary>${model.name}</summary>
+
+        <div class="analysis-tabs">
+          <div class="analysis-section">
+            <h4>Количественный анализ</h4>
+            ${quantitative.map(p => `
+              <div class="analysis-item">
+                <b>${p.number}</b> — ${formatValue(p.territory)}<br>
+                Количество пересечений: <b>${p.count}</b>
+              </div>
+            `).join('')}
+          </div>
+
+          <div class="analysis-section">
+            <h4>Качественный анализ</h4>
+            ${qualitative.map(p => `
+              <details class="project-card">
+                <summary>
+                  <b>${p.number}</b> — ${formatValue(p.territory)}
+                  <br>Итоговый вес: <b>${formatValue(p.final_weight)}</b>
+                </summary>
+
+                <div class="project-details">
+                  <p><b>Описание:</b><br>${formatValue(p.description)}</p>
+                  <p><b>Референсная программа:</b><br>${formatValue(p.reference_programs)}</p>
+                  <p><b>Доп. влияние на другие факторы:</b><br>${formatValue(p.additional_characteristics)}</p>
+                  <p><b>Доп. вес:</b> ${formatValue(p.additional_weight)}</p>
+                  <p><b>Итоговый вес:</b> ${formatValue(p.final_weight)}</p>
+                </div>
+              </details>
+            `).join('')}
+          </div>
+        </div>
+      </details>
+    `;
+  });
+
+  resultsContainer.innerHTML = html || 'Пересечений с моделями не найдено.';
+}
+
 function createGeoJsonLayer(geojson, model) {
   return L.geoJSON(geojson, {
     style: defaultStyle,
@@ -242,6 +395,8 @@ Promise.all([
   projectsData = projects;
 
   loadedModels.forEach(({ model, geojson }) => {
+    modelFeatures[model.file] = geojson.features;
+
     const layer = createGeoJsonLayer(geojson, model);
     activeLayers[model.file] = layer;
 
@@ -259,3 +414,8 @@ Promise.all([
     Проверь наличие всех GeoJSON-файлов и projects.json.
   `;
 });
+
+if (window.innerWidth <= 900) {
+  document.body.classList.add('sidebar-collapsed');
+  document.body.classList.add('analysis-collapsed');
+}
