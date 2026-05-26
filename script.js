@@ -9,47 +9,56 @@ const models = [
   {
     file: 'model.geojson',
     name: 'Общая пространственная модель',
-    visible: false
+    visible: false,
+    color: '#7f0000'
   },
   {
     file: 'model_1.geojson',
     name: 'Транспортно-пространственная связанность и межрегиональная доступность территории',
-    visible: true
+    visible: false,
+    color: '#1f78b4'
   },
   {
     file: 'model_2.geojson',
     name: 'Природно-экологический и рекреационный потенциал территории',
-    visible: false
+    visible: false,
+    color: '#33a02c'
   },
   {
     file: 'model_3.geojson',
     name: 'Социокультурный и туристско-экономический потенциал территории',
-    visible: false
+    visible: false,
+    color: '#6a3d9a'
   },
   {
     file: 'model_4.geojson',
     name: 'Экономическая эффективность и масштаб туристической деятельности',
-    visible: false
+    visible: false,
+    color: '#ff7f00'
   },
   {
     file: 'model_5.geojson',
     name: 'Инфраструктурное обеспечение туристической деятельности',
-    visible: false
+    visible: false,
+    color: '#b15928'
   },
   {
     file: 'model_6.geojson',
     name: 'Событийно-социальная привлекательность территории',
-    visible: false
+    visible: false,
+    color: '#e31a1c'
   },
   {
     file: 'model_7.geojson',
     name: 'Пространственная концентрация туристических зон',
-    visible: false
+    visible: false,
+    color: '#008080'
   },
   {
     file: 'model_8.geojson',
     name: 'Экономическая результативность туристической отрасли',
-    visible: false
+    visible: true,
+    color: '#ef476f'
   }
 ];
 
@@ -119,21 +128,47 @@ document.getElementById('clear-selection-btn').addEventListener('click', functio
   `;
 });
 
-function getColor(weight) {
-  return weight > 0.7 ? '#800026' :
-         weight > 0.5 ? '#BD0026' :
-         weight > 0.3 ? '#E31A1C' :
-         weight > 0.1 ? '#FC4E2A' :
-                        '#FD8D3C';
+function hexToRgb(hex) {
+  const cleanHex = hex.replace('#', '');
+
+  return {
+    r: parseInt(cleanHex.substring(0, 2), 16),
+    g: parseInt(cleanHex.substring(2, 4), 16),
+    b: parseInt(cleanHex.substring(4, 6), 16)
+  };
 }
 
-function defaultStyle(feature) {
+function rgbToHex(r, g, b) {
+  return '#' + [r, g, b]
+    .map(x => {
+      const hex = Math.round(x).toString(16);
+      return hex.length === 1 ? '0' + hex : hex;
+    })
+    .join('');
+}
+
+function getColor(weight, baseColor) {
+
+  const w = Math.max(0, Math.min(1, Number(weight) || 0));
+
+  const base = hexToRgb(baseColor);
+
+  const lightFactor = 0.5 - w * 0.4;
+
+  const r = base.r + (255 - base.r) * lightFactor;
+  const g = base.g + (255 - base.g) * lightFactor;
+  const b = base.b + (255 - base.b) * lightFactor;
+
+  return rgbToHex(r, g, b);
+}
+
+function defaultStyle(feature, model) {
   return {
-    fillColor: getColor(Number(feature.properties["вес"])),
-    weight: 0.3,
-    opacity: 1,
-    color: 'white',
-    fillOpacity: 0.7
+    fillColor: getColor(Number(feature.properties["вес"]), model.color || '#800026'),
+    weight: 0.25,
+    opacity: 0.35,
+    color: '#292323',
+    fillOpacity: 0.5
   };
 }
 
@@ -331,12 +366,16 @@ function renderIntersectionAnalysis(drawnGeoJSON) {
 
 function createGeoJsonLayer(geojson, model) {
   return L.geoJSON(geojson, {
-    style: defaultStyle,
+    style: function(feature) {
+      return defaultStyle(feature, model);
+    },
 
     onEachFeature: function(feature, layer) {
+      layer.defaultStyle = defaultStyle(feature, model);
+
       layer.on('click', function() {
         if (selectedLayer) {
-          selectedLayer.setStyle(defaultStyle(selectedLayer.feature));
+          selectedLayer.setStyle(selectedLayer.defaultStyle);
         }
 
         selectedLayer = layer;
@@ -415,7 +454,25 @@ Promise.all([
   `;
 });
 
-if (window.innerWidth <= 900) {
-  document.body.classList.add('sidebar-collapsed');
-  document.body.classList.add('analysis-collapsed');
-}
+window.addEventListener('load', function() {
+
+  if (window.innerWidth <= 900) {
+
+    document.body.classList.add('sidebar-collapsed');
+    document.body.classList.add('analysis-collapsed');
+
+    setTimeout(() => {
+      map.invalidateSize();
+    }, 300);
+
+  }
+
+});
+
+setTimeout(() => {
+  map.invalidateSize();
+}, 500);
+
+window.addEventListener('resize', function() {
+  map.invalidateSize();
+});
