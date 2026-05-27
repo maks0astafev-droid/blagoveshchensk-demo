@@ -415,3 +415,14 @@ html, body {
   height: 100vh !important;
   overflow: hidden !important;
 }
+
+@media (min-width: 901px) {
+  .leaflet-top.leaflet-left {
+    left: 385px !important;
+    top: 10px !important;
+  }
+
+  body.sidebar-collapsed .leaflet-top.leaflet-left {
+    left: 10px !important;
+  }
+}
